@@ -439,22 +439,25 @@ find_inner_deb() {
   printf '%s' "$found"
 }
 
+should_reenroll() {
+  [[ "$RECONFIGURE" -eq 1 ]] && return 0
+  [[ -n "$TOKEN_FILE" ]] && return 0
+  [[ -n "$ORG_CODE" && -n "$ACCESS_CODE" ]] && return 0
+  return 1
+}
+
 write_config() {
   local defaults_json="$1"
   mkdir -p "$CONFIG_DIR"
   chmod 755 "$CONFIG_DIR"
 
-  if [[ -f "$CONFIG_FILE" && "$RECONFIGURE" -eq 0 && -n "$(installed_version)" ]]; then
-    # Still allow re-enroll when org/access explicitly provided on upgrade path.
-    if [[ -z "$ORG_CODE" && -z "$ACCESS_CODE" && -z "$TOKEN_FILE" ]]; then
-      log "Keeping existing ${CONFIG_FILE}"
-      return 0
-    fi
+  if [[ -f "$CONFIG_FILE" && -n "$(installed_version)" ]] && ! should_reenroll; then
+    log "Keeping existing ${CONFIG_FILE} (pass --org and --access, --reconfigure, or --token-file to re-enroll)"
+    return 0
   fi
 
-  if [[ -f "$CONFIG_FILE" && "$RECONFIGURE" -eq 0 && -z "$ORG_CODE" && -z "$ACCESS_CODE" && -z "$TOKEN_FILE" ]]; then
-    log "Keeping existing ${CONFIG_FILE}"
-    return 0
+  if should_reenroll; then
+    log "Re-enrolling and updating TOKEN in ${CONFIG_FILE}..."
   fi
 
   local token
@@ -465,7 +468,13 @@ write_config() {
 import json, os, sys
 path = sys.argv[1]
 token = sys.argv[2]
-cfg = json.loads(os.environ["FIELDX_DEFAULTS_JSON"])
+defaults = json.loads(os.environ["FIELDX_DEFAULTS_JSON"])
+cfg = dict(defaults)
+if os.path.exists(path):
+    with open(path, encoding="utf-8") as f:
+        cfg.update(json.load(f))
+for key, value in defaults.items():
+    cfg[key] = value
 cfg["TOKEN"] = token
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, "w", encoding="utf-8") as f:
@@ -540,6 +549,9 @@ do_install_or_upgrade() {
     if [[ "$DRY_RUN" -eq 1 ]]; then
       log "Dry run: would ensure config + service"
       return 0
+    fi
+    if should_reenroll; then
+      log "Package unchanged; applying new enrollment credentials"
     fi
     write_config "$(manifest_get config_defaults)"
     ensure_log_dirs
