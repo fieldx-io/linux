@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "agent_version": "1.0.0",
+  "min_installer_version": "1.0.0",
+  "enroll_api_url": "https://portal.fieldx.io/api/v1/app/enrol",
+  "config_defaults": {
+    "BROKER_URL": "portal.fieldx.io",
+    "BASE_URL": "https://portal.fieldx.io/api",
+    "PUB_TOPIC_STR": "adb_{{DEVICE_ID}}_response",
+    "SUB_TOPIC_STR": "adb_{{DEVICE_ID}}",
+    "KEEPALIVE": 20,
+    "STAT_POSTING_INTERVAL": 900,
+    "INFO_POSTING_INTERVAL": 900,
+    "APP_POSTING_INTERVAL": 600,
+    "LOGLEVEL": 20,
+    "LOG_POSTING_INTERVAL": 600,
+    "CONFIG_SYNC_INTERVAL": 3600,
+    "HEARTBEAT_INTERVAL": 180,
+    "SUB_TOPIC_STR_NOTIF": "getfieldx/com/notification/{{DEVICE_ID}}",
+    "RESTRICT_SYNC_INTERVAL": 900
+  },
+  "packages": {
+    "debian-amd64": {
+      "archive_url": "https://github.com/fieldx-io/linux/releases/download/v1.0.0/fieldx_amd64.deb",
+      "sha256": "dc113345d5d7224eecd2efc03502458d5c880fc7cec8ede217e7172e384c914e",
+      "inner_deb": "fieldx.deb"
+    },
+    "debian-arm64": {
+      "archive_url": "https://github.com/fieldx-io/linux/releases/download/v1.0.0/fieldx_arm64.deb",
+      "sha256": "",
+      "inner_deb": "fieldx.deb"
+    }
+  }
+}
