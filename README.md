@@ -2,7 +2,7 @@
 
 FieldX Linux agent for Debian/Ubuntu.
 
-## Install (amd64 / x86_64)
+## Install (amd64 / ARM64)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/fieldx-io/linux/main/install.sh | sudo bash -s -- --org ORG_CODE --access ACCESS_CODE
@@ -10,7 +10,7 @@ curl -fsSL https://raw.githubusercontent.com/fieldx-io/linux/main/install.sh | s
 
 Get org and access codes from the FieldX admin portal (same enrol as iOS).
 
-The installer downloads `fieldx_amd64.deb` (SHA256 verified), installs the package, enrols, and starts `fieldx.service`. No 7z / p7zip.
+The installer detects your CPU (`x86_64` → `fieldx_amd64.deb`, `aarch64` → `fieldx_arm64.deb`), downloads the matching package from `manifest.json` (SHA256 verified), installs it, enrols, and starts `fieldx.service`. No 7z / p7zip.
 
 ### Already installed?
 
@@ -23,7 +23,5 @@ Removes the agent package, systemd service, config (`/var/lib/fieldx`), and logs
 ```bash
 curl -fsSL https://raw.githubusercontent.com/fieldx-io/linux/main/install.sh | sudo bash -s -- --uninstall
 ```
-
-ARM64 package is not published yet.
 
 Reach out to support@fieldx.io for further queries.
