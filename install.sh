@@ -4,7 +4,6 @@
 # Recommended (portal can auto-fill org + access):
 #   curl -fsSL .../install.sh | sudo bash -s -- --org ORG_CODE --access ACCESS_CODE
 #
-# Same enroll API as iOS Manager: POST /api/v1/app/enrol (MD5 username/password).
 set -euo pipefail
 
 INSTALLER_VERSION="1.0.0"
@@ -16,7 +15,7 @@ BUFFER_DIR="${LOG_DIR}/bufferedLogs"
 SERVICE_NAME="fieldx.service"
 
 DEFAULT_MANIFEST_URL="https://raw.githubusercontent.com/fieldx-io/linux/main/manifest.json"
-DEFAULT_ENROLL_API_URL="https://portal.fieldx.io/api/v1/app/enrol"
+FIELDX_ENROLL_BIN="/usr/bin/fieldx-enroll"
 MANIFEST_URL="${FIELDX_MANIFEST_URL:-$DEFAULT_MANIFEST_URL}"
 
 ORG_CODE=""
@@ -94,7 +93,6 @@ resolve_enroll_api_url() {
     ENROLL_API_URL="${base%/}/v1/app/enrol"
     return 0
   fi
-  ENROLL_API_URL="$DEFAULT_ENROLL_API_URL"
 }
 
 parse_args() {
@@ -152,111 +150,22 @@ prompt_for_token() {
   printf '%s' "$token"
 }
 
-# Same contract as iOS DeviceEnrollmentAPI: POST /api/v1/app/enrol
-# username=md5(org), password=md5(access); token from x-auth-token or JSON body.
 enroll_via_api() {
-  local org="$1" access="$2" api_url="$3"
+  local org="$1" access="$2" api_url="${3:-}"
   [[ -n "$org" && -n "$access" ]] || die "Both --org and --access are required"
-  [[ -n "$api_url" ]] || die "Enrol API URL missing"
+  [[ -x "$FIELDX_ENROLL_BIN" ]] || die "FieldX is not installed (${FIELDX_ENROLL_BIN} missing). Install or upgrade the agent package first."
 
-  log "Requesting enrollment token from enrol API..."
-  FIELDX_ENROLL_ORG="$org" FIELDX_ENROLL_ACCESS="$access" FIELDX_ENROLL_URL="$api_url" python3 - <<'PY'
-import hashlib
-import json
-import os
-import sys
-import urllib.error
-import urllib.request
-
-org = os.environ["FIELDX_ENROLL_ORG"].strip()
-access = os.environ["FIELDX_ENROLL_ACCESS"].strip()
-url = os.environ["FIELDX_ENROLL_URL"].strip()
-
-def is_prehashed(value: str) -> bool:
-    return len(value) == 32 and all(c in "0123456789abcdefABCDEF" for c in value)
-
-def credential(value: str) -> str:
-    trimmed = value.strip()
-    if is_prehashed(trimmed):
-        return trimmed.lower()
-    return hashlib.md5(trimmed.encode("utf-8")).hexdigest()
-
-# Match iOS: plain org uppercased before hash; prehashed left as-is (lower).
-if is_prehashed(org):
-    org_norm = org
-else:
-    org_norm = org.upper()
-access_norm = access
-
-username = credential(org_norm)
-password = credential(access_norm)
-
-payload = json.dumps({"request": {"username": username, "password": password}}).encode("utf-8")
-req = urllib.request.Request(
-    url,
-    data=payload,
-    method="POST",
-    headers={"Content-Type": "application/json", "Accept": "application/json"},
-)
-
-try:
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        status = resp.getcode()
-        header_token = (resp.headers.get("x-auth-token") or "").strip()
-        body = resp.read().decode("utf-8", errors="replace")
-except urllib.error.HTTPError as e:
-    err_body = e.read().decode("utf-8", errors="replace")
-    msg = err_body
-    try:
-        obj = json.loads(err_body)
-        msg = obj.get("message") or (obj.get("response") or {}).get("message") or err_body
-    except Exception:
-        pass
-    print(f"Enrollment failed HTTP {e.code}: {msg}", file=sys.stderr)
-    sys.exit(1)
-except Exception as e:
-    print(f"Enrollment request failed: {e}", file=sys.stderr)
-    sys.exit(1)
-
-def find_token(value):
-    if value is None:
-        return None
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    if isinstance(value, dict):
-        for key in ("token", "authToken", "bearerToken", "accessToken"):
-            if key in value and isinstance(value[key], str) and value[key].strip():
-                return value[key].strip()
-        for nested in value.values():
-            found = find_token(nested)
-            if found:
-                return found
-    return None
-
-def looks_like_error(value: str) -> bool:
-    lowered = value.lower()
-    if lowered.startswith("eyj"):
-        return False
-    return any(x in lowered for x in ("invalid", "denied", "error", "failed"))
-
-token = header_token
-if token and looks_like_error(token):
-    print(f"Enrollment rejected: {token}", file=sys.stderr)
-    sys.exit(1)
-
-if not token:
-    try:
-        token = find_token(json.loads(body)) if body.strip() else None
-    except json.JSONDecodeError:
-        token = body.strip() or None
-
-if not token:
-    print("Enrollment succeeded but no token in x-auth-token or body.", file=sys.stderr)
-    sys.exit(1)
-
-# Prefer JWT; keep base32 envelope if that is what the server returned (agent resolves it).
-print(token)
-PY
+  log "Requesting enrollment token..."
+  local -a cmd=("$FIELDX_ENROLL_BIN" --org "$org" --access "$access")
+  if [[ -n "$api_url" ]]; then
+    cmd+=(--enroll-api "$api_url")
+  fi
+  local token=""
+  if ! token="$("${cmd[@]}")"; then
+    die "Enrollment failed (see messages above)"
+  fi
+  [[ -n "$token" ]] || die "Enrollment returned an empty token"
+  printf '%s' "$token"
 }
 
 resolve_enrollment_token() {

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "agent_version": "1.0.6",
+  "agent_version": "1.0.7",
   "min_installer_version": "1.0.0",
   "enroll_api_url": "https://portal.fieldx.io/api/v1/app/enrol",
   "config_defaults": {
@@ -21,13 +21,13 @@
   },
   "packages": {
     "debian-amd64": {
-      "archive_url": "https://github.com/fieldx-io/linux/releases/download/v1.0.6/fieldx_amd64.deb",
-      "sha256": "0de20245a40a5eaa927848bf076daea5384e2ed2ba092b91f5d451de19289db5",
+      "archive_url": "https://github.com/fieldx-io/linux/releases/download/v1.0.7/fieldx_amd64.deb",
+      "sha256": "dfa8a6a11b2fb3b944e4bd0122b3ed7e97d3a61d0cf273f1b9439390f9f23557",
       "inner_deb": "fieldx.deb"
     },
     "debian-arm64": {
-      "archive_url": "https://github.com/fieldx-io/linux/releases/download/v1.0.6/fieldx_arm64.deb",
-      "sha256": "66ee85e5099a0e60dc710ca6de82e4b75f5d2bb499e2a90855d33fd15447273a",
+      "archive_url": "https://github.com/fieldx-io/linux/releases/download/v1.0.7/fieldx_arm64.deb",
+      "sha256": "a3f4faf67d0a2634bfd1fe17871be7684ac3bf7ae0e578ba9c225492ca6e386d",
       "inner_deb": "fieldx.deb"
     }
   }
