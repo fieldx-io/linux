@@ -45,7 +45,7 @@ Options:
   --org CODE          Organization code (Enrollment Code page / portal)
   --access CODE       Access code (same page)
   --token-file PATH   Fallback: raw enrollment token from file (chmod 600)
-  --reconfigure       Rewrite ${CONFIG_FILE} (re-enroll with --org/--access)
+  --reconfigure       Rewrite device configuration (re-enroll with --org/--access)
   --check             Print installed vs latest version
   --uninstall         Remove agent, service, and data
   --dry-run           Show actions without installing
@@ -155,7 +155,7 @@ enroll_via_api() {
   [[ -n "$org" && -n "$access" ]] || die "Both --org and --access are required"
   [[ -x "$FIELDX_ENROLL_BIN" ]] || die "FieldX is not installed (${FIELDX_ENROLL_BIN} missing). Install or upgrade the agent package first."
 
-  log "Requesting enrollment token..."
+  log "Running fieldx-enroll..."
   local -a cmd=("$FIELDX_ENROLL_BIN" --org "$org" --access "$access")
   if [[ -n "$api_url" ]]; then
     cmd+=(--enroll-api "$api_url")
@@ -164,7 +164,7 @@ enroll_via_api() {
   if ! token="$("${cmd[@]}")"; then
     die "Enrollment failed (see messages above)"
   fi
-  [[ -n "$token" ]] || die "Enrollment returned an empty token"
+  [[ -n "$token" ]] || die "Enrollment failed"
   printf '%s' "$token"
 }
 
@@ -361,38 +361,46 @@ write_config() {
   chmod 755 "$CONFIG_DIR"
 
   if [[ -f "$CONFIG_FILE" && -n "$(installed_version)" ]] && ! should_reenroll; then
-    log "Keeping existing ${CONFIG_FILE} (pass --org and --access, --reconfigure, or --token-file to re-enroll)"
+    log "Keeping existing device configuration (use --org/--access, --reconfigure, or --token-file to enroll again)"
     return 0
   fi
 
   if should_reenroll; then
-    log "Re-enrolling and updating TOKEN in ${CONFIG_FILE}..."
+    log "Applying device configuration..."
   fi
 
   local token
   token="$(resolve_enrollment_token)"
-  [[ -n "$token" ]] || die "Failed to obtain enrollment token"
+  [[ -n "$token" ]] || die "Enrollment failed"
 
-  FIELDX_DEFAULTS_JSON="$defaults_json" python3 -c '
+  FIELDX_INSTALL_TOKEN="$token" FIELDX_DEFAULTS_JSON="$defaults_json" python3 -c '
 import json, os, sys
 path = sys.argv[1]
-token = sys.argv[2]
+token = os.environ.pop("FIELDX_INSTALL_TOKEN", "")
+if not token:
+    sys.exit("Enrollment failed")
 defaults = json.loads(os.environ["FIELDX_DEFAULTS_JSON"])
-cfg = dict(defaults)
+cfg = {k: v for k, v in defaults.items() if k != "SUB_TOPIC_STR_NOTIF"}
 if os.path.exists(path):
     with open(path, encoding="utf-8") as f:
-        cfg.update(json.load(f))
+        merged = json.load(f)
+    merged.pop("SUB_TOPIC_STR_NOTIF", None)
+    cfg.update(merged)
 for key, value in defaults.items():
+    if key == "SUB_TOPIC_STR_NOTIF":
+        continue
     cfg[key] = value
+cfg.pop("SUB_TOPIC_STR_NOTIF", None)
 cfg["TOKEN"] = token
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, "w", encoding="utf-8") as f:
     json.dump(cfg, f, indent=2)
     f.write("\n")
 os.chmod(path, 0o600)
-' "$CONFIG_FILE" "$token"
+' "$CONFIG_FILE"
+  unset FIELDX_INSTALL_TOKEN token
   chown root:root "$CONFIG_FILE"
-  log "Wrote ${CONFIG_FILE}"
+  log "Device configuration saved"
 }
 
 ensure_log_dirs() {
@@ -460,7 +468,7 @@ do_install_or_upgrade() {
       return 0
     fi
     if should_reenroll; then
-      log "Package unchanged; applying new enrollment credentials"
+      log "Package unchanged; applying device configuration"
     fi
     write_config "$(manifest_get config_defaults)"
     ensure_log_dirs
