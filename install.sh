@@ -263,7 +263,21 @@ ensure_deps() {
   local package_kind="${1:-deb}"
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq
-  local pkgs=(curl ca-certificates python3)
+  # Install + enroll basics, plus screen-view / remote-input runtime deps.
+  # X11 live view needs ffmpeg; pointer needs xdotool; Wayland uses grim;
+  # GNOME fallbacks use gnome-screenshot; x11-utils/x11-xserver-utils for display probe.
+  local pkgs=(
+    curl
+    ca-certificates
+    python3
+    ffmpeg
+    xdotool
+    x11-utils
+    x11-xserver-utils
+    grim
+    gnome-screenshot
+    scrot
+  )
   if [[ "$package_kind" == "7z" ]]; then
     if ! command -v 7z >/dev/null 2>&1 && ! command -v 7za >/dev/null 2>&1; then
       pkgs+=(p7zip-full)
@@ -464,9 +478,11 @@ do_install_or_upgrade() {
   else
     log "Already at ${local_ver} (latest ${remote_ver})"
     if [[ "$DRY_RUN" -eq 1 ]]; then
-      log "Dry run: would ensure config + service"
+      log "Dry run: would ensure config + service + runtime deps"
       return 0
     fi
+    # Still install screen-view / remote-input packages (ffmpeg, xdotool, …).
+    ensure_deps deb
     if should_reenroll; then
       log "Package unchanged; applying device configuration"
     fi
